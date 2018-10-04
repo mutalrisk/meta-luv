@@ -1,0 +1,47 @@
+#!/bin/sh
+#
+# Parse the output of the BITS tests and write a luv-test-manager
+# compatible version to stdout.
+#
+awk -v TESTS_JSON="PARSERDIR/bits.json" '
+@include "PARSERDIR/libparser"
+
+/\=\=\=/ {
+	# There is not a clear way of identifying the end of a test. Thus,
+	# we rely on the start of the next test. Of course, we should not
+	# print the END tag if we are not parsing any test.
+	prev_test = test;
+	test=$2;
+	if (!parsing_tests) {
+		parsing_tests = 1;
+		prev_test = test;
+	} else {
+		severity = get_severity(prev_test, TESTS_JSON)
+		printf "1.0 bits %s RESULT %d %d %d 0 %d 0\n", prev_test, passes,
+			fails, severity, skips;
+		passes = 0; fails = 0; skips =0;
+		printf ("1.0 bits %s END\n", prev_test);
+	}
+
+	# We have reached of the test cases
+	if ($2 == "Overall") {
+		exit 0;
+	}
+
+	printf ("1.0 bits %s START\n", test);
+	fflush("");
+}
+
+{
+	if (parsing_tests) {
+		printf ("1.0 bits %s INFO %s \n", test, $0);
+	}
+}
+
+/^Summary/ {
+	passes += $2
+	fails += $4
+
+	if (!passes && !fails)
+		skips += 1
+}'

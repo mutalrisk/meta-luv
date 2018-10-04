@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Check to see whether the BITS tests were run as part of this boot.
+#
+
+EFI_PATH="/mnt/luv-efi"
+bits_log=/home/root/bits-log.txt
+
+if [ ! -e $bits_log ]; then
+    # Nothing to do, no test results.
+    exit 0
+fi
+
+cat $bits_log
+
+# if booted from disk, create a new emtpy log file to use when rebooting
+grep -q luv\.netboot /proc/cmdline
+if [ $? -ne 0 ]; then
+    mkdir -p /tmp/newbitsrd/home/root
+    yes '' | head -c 524288 >  /tmp/newbitsrd/home/root/bits-log.txt
+    cd /tmp/newbitsrd
+    find . | cpio --create --format='newc' > ${EFI_PATH}/boot/bitsrd
+    rm -fr /tmp/newbitsrd
+fi

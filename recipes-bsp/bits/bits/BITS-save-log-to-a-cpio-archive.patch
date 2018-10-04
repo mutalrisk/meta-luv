@@ -1,0 +1,52 @@
+From a48d106e87b596387297596b78e44779fcb669ff Mon Sep 17 00:00:00 2001
+From: Megha Dey <megha.dey@linux.intel.com>
+Date: Tue, 19 Jun 2018 12:46:51 -0700
+Subject: [PATCH] python: save log to a cpio archive
+
+Now that support for cpio file archivers has been added, generate
+a cpio file as part of install-log. This is a simple cpio archive
+that contains the single file /home/root/bits-log.txt as well as
+its subdirectories. This a location that should be easily accessible
+from Linux if the cpio archive is passed as a ramdisk. As with the
+original bits-log.txt, the file is 512k in size.
+
+The init module is updated to make use of this cpio archive.
+
+Signed-off-by: Ricardo Neri <ricardo.neri-calderon@linux.intel.com>
+---
+ Makefile       | 5 ++++-
+ python/init.py | 2 +-
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 75fd5bc..814ee51 100644
+--- a/Makefile
++++ b/Makefile
+@@ -154,7 +154,10 @@ dist: install-grub-cfg
+ 
+ # Add a 512k preallocated file, full of newlines, to hold BITS logs.
+ install-log: setup
+-	$(Q)yes '' | head -c 524288 > '$(target)/boot/bits-log.txt'
++	$(Q)mkdir -p $(target)/bitsrdtmp/home/root
++	$(Q)yes '' | head -c 524288 > '$(target)/bitsrdtmp/home/root/bits-log.txt'
++	$(Q)cd $(target)/bitsrdtmp; find . | cpio --create --format='newc' > $(target)/boot/bitsrd
++	$(Q)rm -fr $(target)/bitsrdtmp
+ 	$(call mk_faketarget)
+ dist: install-log
+ 
+diff --git a/python/init.py b/python/init.py
+index bcd147b..b2a97b2 100644
+--- a/python/init.py
++++ b/python/init.py
+@@ -243,7 +243,7 @@ def init():
+                 traceback.print_exc()
+ 
+         print "\nBatch mode complete\n"
+-        redirect.write_logfile("/boot/bits-log.txt")
++        redirect.write_logfile_cpio("/boot/bitsrd", "home/root/bits-log.txt")
+ 
+     with import_annotation("cpumenu"):
+         import cpumenu
+-- 
+1.9.1
+

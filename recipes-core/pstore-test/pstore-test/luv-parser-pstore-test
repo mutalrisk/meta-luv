@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+# Parse the output of pstore-tests and write a luv-test-manager
+# compatible log to stdout.
+
+if [ -e REBOOT_DIR/reboot_flag ]; then
+    REBOOT_TEST=1
+fi
+
+awk -v reboot_test=${REBOOT_TEST} -v TESTS_JSON="PARSERDIR/pstore-test.json" '
+@include "PARSERDIR/libparser"
+/ing/ {
+       prev_test = test;
+        test=substr($0,1,index($0,"...")-2);
+        if (test == "")
+            test=substr($0,1,index($0,":")-3);
+        gsub(" ","_",test);
+       if (!parsing_tests) {
+               parsing_tests = 1;
+               prev_test = test;
+       } else {
+               printf ("1.2 pstore-tests %d %s END\n", reboot_test, prev_test);
+       }
+
+       printf ("1.2 pstore-tests %d %s START\n", reboot_test, test);
+       fflush("");
+    }
+
+    /ok/ {
+       printf ("1.2 pstore-tests %d %s RESULT 1 0 0 0 0 0\n", reboot_test, test);
+       fflush("");
+    }
+
+    /FAIL/ {
+       severity = get_severity(test, TESTS_JSON)
+       printf ("1.2 pstore-tests %d %s RESULT 0 1 %d 0 0 0\n", reboot_test, test, \
+               severity);
+       fflush("");
+    }
+
+    {
+       printf ("1.2 pstore-tests %d %s INFO %s\n", reboot_test, test, $0);
+       fflush("");
+    }
+
+    END {
+       printf ("1.2 pstore-tests %d %s END\n", reboot_test, test);
+       fflush("");
+    }
+'

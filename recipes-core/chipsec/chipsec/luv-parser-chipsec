@@ -1,0 +1,98 @@
+#!/bin/sh
+#
+# Parse the output of chipsec and write a luv-test-manager compatible
+# log to stdout.
+
+sed 's/\x1B\[[0-9][0-9]*m//g' |
+
+awk -v TESTS_JSON="PARSERDIR/chipsec.json" '
+@include "PARSERDIR/libparser"
+
+/\[\*\] running module/ {
+	"date +%H:%M:%S:%N" | getline current_time;
+	close ("date +%H:%M:%S:%N");
+	prev_test = testname;
+	testname = $4;
+	# there is not a clear way of identifying the end of a test. Thus,
+	# we rely on the start of the next test. Of course, we should not
+	# print the END tag if we are not parsing any test.
+	if (!parsing_tests) {
+		parsing_tests = 1;
+		prev_test = testname;
+	} else {
+		printf("1.1 %s chipsec %s RESULT %d %d %d 0 %d %d\r\n",
+		       current_time, prev_test, passes, fails, severity, skips, warns);
+		printf ("1.1 %s chipsec %s END\n", current_time, prev_test);
+		fflush("");
+	}
+	testname = $4;
+	printf ("1.1 %s chipsec %s START\n", current_time, testname);
+	passes = 0;
+	fails  = 0;
+	skips  = 0;
+	warns  = 0;
+	severity = get_severity(testname, TESTS_JSON);
+}
+
+/\*\*\*  SUMMARY  \*\*\*/ {
+        "date +%H:%M:%S:%N" | getline current_time;
+        close ("date +%H:%M:%S:%N");
+
+	severity = get_severity(testname, TESTS_JSON);
+
+	# emit results for the last test case
+	printf("1.1 %s chipsec %s RESULT %d %d %d 0 %d %d\r\n",
+		current_time, testname, passes, fails, severity, skips, warns);
+	printf ("1.1 %s chipsec %s END\n", current_time, testname);
+        exit 0;
+}
+
+{
+	if (parsing_tests) {
+		printf ("1.1 %s chipsec %s INFO %s \n", current_time, testname, $0);
+	}
+}
+
+/\[\*\] SKIPPED/ || /Skipping/ {
+	"date +%H:%M:%S:%N" | getline current_time;
+	close ("date +%H:%M:%S:%N")
+	if (parsing_tests) {
+		skips += 1;
+	}
+}
+
+/^ERROR/ {
+	"date +%H:%M:%S:%N" | getline current_time;
+	close ("date +%H:%M:%S:%N")
+	if (parsing_tests) {
+		warns += 1;
+	}
+}
+
+/\[\!\] WARNING/ ||
+# The s3bootscript test does not give any indication of the tests being
+# skipped. Thus, we cannot avoid using a very specific pattern to detect it.
+# We should remove this as soon as possible.
+/\[\+\] S3 Boot-Script wasn'\''t found in EFI variables / {
+	"date +%H:%M:%S:%N" | getline current_time;
+	close ("date +%H:%M:%S:%N")
+	if (parsing_tests) {
+		warns += 1;
+	}
+}
+
+/\[\-\] FAILED/ {
+	"date +%H:%M:%S:%N" | getline current_time;
+	close ("date +%H:%M:%S:%N")
+	if (parsing_tests) {
+		fails += 1;
+	}
+}
+
+/\[\+\] PASSED/ {
+	"date +%H:%M:%S:%N" | getline current_time;
+	close ("date +%H:%M:%S:%N")
+	if (parsing_tests) {
+		passes += 1;
+	}
+}'

@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the LUV tests
+After=luv-crash-handler.service luv-netconsole.service
+Before=plymouth-quit.service
+
+[Service]
+Type=oneshot
+ExecStart=@SBINDIR@/luv-test-manager
+StandardOutput=tty
+TTYPath=LUV_TTY_CONSOLE
+
+[Install]
+WantedBy=multi-user.target

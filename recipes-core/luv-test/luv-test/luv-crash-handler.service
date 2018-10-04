@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the LUV crash handler
+ConditionKernelCommandLine=!luv.netboot
+Wants=dev-disk-by\x2duuid-423C\x2dC2C8.device
+After=dev-disk-by\x2duuid-423C\x2dC2C8.device
+
+[Service]
+Type=oneshot
+ExecStart=@SBINDIR@/luv-crash-handler
+StandardOutput=tty
+TTYPath=LUV_TTY_CONSOLE
+
+[Install]
+WantedBy=multi-user.target

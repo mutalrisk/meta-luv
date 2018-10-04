@@ -1,0 +1,336 @@
+This README file contains information on the contents of the meta-luv
+layer, which is the layer containing all the components necessary to
+build the Linux UEFI Validation distribution.
+
+Please see the corresponding sections below for details.
+
+
+Dependencies
+============
+
+This layer depends on:
+
+  URI: git://git.openembedded.org/bitbake
+  branch: master
+
+  URI: git://git.openembedded.org/openembedded-core
+  layers: meta
+  branch: master
+
+  URI: git://git.yoctoproject.org/poky
+  branch: master
+
+
+Patches
+=======
+
+Please submit any patches against the meta-luv layer to the luv mailing
+list (luv@lists.01.org) and cc: the maintainer:
+
+Maintainers:
+===========
+
+The intention of this section is to provide a set of names that we can rely on
+for helping in patch reviews and questions.
+These names are additional recipients for emails sent to luv@lists.01.org
+
+NOTE: Please avoid private emails.
+
+Descriptions of section entries:
+
+	M: Maintainer's Full Name <address@domain>
+	T: Git tree location.
+
+General Project Administration
+------------------------------
+M: Megha Dey <megha.dey@intel.com>
+R: Ricardo Neri <ricardo.neri-calderon@linux.intel.com>
+T: https://github.com/01org/luv-yocto.git
+
+x86
+M: Megha Dey <megha.dey@intel.com>
+R: Ricardo Neri <ricardo.neri-calderon@linux.intel.com>
+
+AArch64
+M: Naresh Bhat <naresh.bhat@linaro.org>
+
+Table of Contents
+=================
+
+    I. Adding meta-luv and meta-oe layers to your build
+   II. Using GIT with a proxy
+  III. Building LUV
+   IV. Executing ACPI NFIT destructive tests
+    V. Use of Netconsole in LUV
+   VI. Obtaining debug information
+  VII. Other LUV boot parameters
+ VIII. Submitting results to a remote location
+   IX. Add parameters to disable/enable the testsuites independently
+
+
+I. Setting LUV build system
+===========================
+
+LUV uses additional layers to build correctly. The meta-luv layer
+provides the LUV-specific software component needed to run tests
+and compile results. The meta-oe layer provides a collection of
+auxiliary packages needed when building a live image.
+
+A script "luv-setup" is provided in the root directory of the source code.
+After cloning the repo. one needs to do:
+. luv-setup
+to setup the default DISTRO out of the box, along with adding luv-specific
+layers to BBLAYERS. By default, MACHINE is set to qemux86-64 and can be
+changed if one wishes to build for any other type of system.
+
+II. Using GIT with a proxy
+==========================
+
+To use git with a proxy, you must use an external git proxy command.
+To do so:
+1. Copy the site.conf.sample file from meta-poky/conf/ to build/conf/
+2. Rename this file as site.conf
+3. Uncomment the following in site.conf
+            GIT_PROXY_COMMAND ?= "oe-git-proxy"
+4. Replace "oe-git-proxy" with the git proxy command script on your
+   host system.
+
+III. Building LUV
+=================================================
+
+LUV can boot from either a local network or a disk. The process to build
+is slightly different for each case.
+
+By default, we build from a physical disk (DISTRO = "luv" in local.conf).
+One simply needs to do:
+
+  bitbake luv-live-image
+
+If you intend to build an image to boot from a local network, then it is
+necessary to specify the luv-netboot distribution in local.conf.
+e.g.:
+
+  DISTRO = "luv-netboot"
+
+Afterwards, you can simply do:
+
+  bitbake luv-netboot-image
+
+IV. Executing ACPI NFIT destructive tests
+=================================================
+
+The NDCTL test suite includes a batch of destructive tests. These are
+disabled by default. If the user wants to execute these destructive
+tests, the luv.nfit-destructive option needs to be passed as a kernel
+parameter. This can be done by adding this option to the grub linux
+command that loads the Linux kernel. The file to implement this change
+is EFI/BOOT/grub.cfg located in the bootable partition of the LUV
+media.
+
+V. Use of Netconsole in LUV
+=================================================
+
+Netconsole is a Linux feature and a kernel module that sends all
+kernel log messages to a remote machine over the network. It does not
+have all overwhelming userspace messages and pretty convenient when
+a serial console is unavailable. Netconsole (network console) is just
+an alternative to serial console.
+
+Why Netconsole?
+---------------
+As already stated, it comes in handy when no serial console is
+available and, importantly, it is a powerful kernel debugging tool.
+It sends the kernel log messages(dmesg)to a different machine over
+UDP packets and helps in debugging when there is system hang.
+
+Why in LUV?
+-----------
+LUV is used to test systems for any firmware issues and there is
+a possibility that the system may hang during the execution of LUV.
+It is very important that LUV gets the debug information
+to narrow down the causes and provide support to its users.
+
+Usage in LUV
+------------
+In order to make use of the netconsole feature in LUV users must be
+aware of its usage.
+
+The current release of luv-netconsole could support Linux and Microsoft
+Windows hosts and remote machines. However, at the moment it is only
+possible to make changes in the grub.cfg file using a Linux system.
+This file is available in the second partition of the image mounted
+or flashed in a USB stick.
+
+Choose the IP address and port number where you want all messages
+to be sent to. Once decided, you can replace the dummy IP address and
+port number given in grub.cfg as luv_netconsole=10.11.12.13,64001
+(the IP address and port number respectively).
+
+The grub.cfg file is located in boot partition. The location is
+EFI/BOOT/grub.cfg. Edit the file to meet the needs of netconsole.
+
+On the remote machine, use netcat or nc to listen all the messages
+that are being sent:
+
+   $ netcat -l -u <port number> (or)  nc -l -u <port number>
+example:
+   $ netcat -l -u 64001
+
+Usage in Bits
+------------
+Implementation of luv_netconsole in BITS helps us capture the BITS log, thus
+achieving fully automated network debugging support in LUV. However, the usage
+of netconsole in BITS varies slightly as luv-netconsole in LUV provides the
+support by sending the messages via UDP, whereas BITS only
+supports sending the debug info via TCP socket.
+
+On the remote machine, use netcat as usual and since UDP is not supported, get
+rid of '-u' option.
+
+   $ netcat -l <port number> (or) nc -l <port number>
+example:
+   $ netcat -l 64001
+
+Steps on how to get IP address and choose port number
+-----------------------------------------------------
+On your terminal do
+
+   $ ifconfig
+
+Look for interfaces like eth0, eth1, lo and wlan0. All the ethernet
+interfaces are eth0, eth1 .., and lo is the loopback interface
+(system uses to communicate with itself), and wireless interfaces
+are wlan0, wlan1 etc. There can be interfaces (usually unamed by user
+while setting up) other than the ones mentioned here.
+
+Now look for 'inet addr' in available interfaces other than lo. If
+you want to use wireless network look in 'wlan' interfaces, or look in
+ethernet 'eth' interfaces etc.
+
+inet addr is the IP address we are looking for.
+
+Choose port numbers which are not reserved for any kernel activities
+like 4000's and above. port 64001 is chosen in luv-netconsole.
+
+VI. Obtaining debug information
+=================================================
+
+Sometimes is the execution of tests may end unexpectedly. In this kind
+of situations could be useful to see how much the test manager
+progresses and, maybe, identify the offending test case. To enable
+this option, you need to add luv.debug in the parameters that grub
+passes to Linux via the linux command. The grub configuration file
+is located in EFI/BOOT/grub.cfg in the test results partition (the
+first partition you see in the LUV disk).
+
+When luv.debug is enabled, the LUV test manager will leave a file
+named luv-debug.log inside the time-stamped directory luv-results-
+yyyy-mm-dd--hh-mm--ss with the debug data it collected.
+
+VII. Other LUV boot parameters
+=================================================
+
+These parameters can be also added to the linux kernel command line
+to alter the default behaviour of LUV.
+  noluv
+    Do not start the LUV test suite after booting
+  luv.netboot
+    Force LUV to believe it has been booted over a network.
+    (Currently this only sets test output to /tmp/luv-storage)
+  luv.halt
+    Halts the machine after tests have completed. (Calls /sbin/halt)
+  luv.reboot
+    Reboots the machine after tests have completed (Calls /sbin/reboot)
+  luv.poweroff
+    Halts and powers off the machine after tests have completed.
+    (Calls /sbin/poweroff)
+  luv.telemetrics
+    User wants to enable the telemetrics feature. By doing so, they are
+    agreeing to send data to our server for further analysis.By default,
+    feature is disabled.
+  luv.crash
+    This kernel parameter will tell us if we are in a regular boot.If so,
+    we have to prepare everything in case there is a kernel crash in the
+    future. Unlike the other LUV boot parameters, this one is not intended
+    to be used directly.
+  luv.pstore-tests
+    This kernel parameter will enable the pstore_crash_test test of the
+    pstore-test suite. This test will cause a reboot post which the
+    pstore_post_reboot_tests would run. Without this parameter, only the
+    pstore_tests test would run.
+
+VIII. Submitting results to a remote location
+==============================================
+
+When LUV boots via network (netboot), there is no way of storing the results
+as there is no presence of physical media. It can be useful if there is a way to
+store the results such as sending them to a central location over network.
+Sending the results over network can only be possible if LUV knows where the
+results should be sent to. One possible way is to store the results to a
+website/server. LUV should have the information about the website/server like an
+URL.
+
+LUV_STORAGE_URL is a parameter in the file 'luv.cfg' that stores the URL of a
+website/server. One has to make sure that the url is functional and the server
+is accessible to the admin/user to retrieve the results. When this parameter is
+invalid, LUV will not have the capability of sending the test results to the
+desired location (website/server).
+
+Configuring a server to gather test results
+-------------------------------------------
+The format of the parameter LUV_STORAGE_URL typically looks like this
+LUV_STORAGE_URL=http://ipaddress/cgi-bin/upload.php (as mentioned in luv.cfg)
+
+The website/server that is going to store the results is a HTTP server and at
+the moment LUV does not have the capability of resolving the hostname in to an
+ipaddress and thus, it is necessary to provide an IP address. If you are not
+sure on how to get the ipaddress please follow
+'Steps on how to get IP address and choose port number' in section IV.
+
+It is always good and recommended to have a destined directory/folder
+specifically for storing results. The path of this destined folder/directory is
+listed in a script (upload.php) that is in the cgi-bin directory. This script is
+responsible for uploads using HTTP POST method.
+
+User/developer has to make sure that upload.php script is present in cgi-bin
+directory.
+
+$ cd /usr/lib/cgi-bin/
+/usr/lib/cgi-bin$ ls
+upload.php
+
+If you do not have a server setup or do not have a upload.php script, please
+follow the documentation
+https://github.com/01org/luv-yocto/wiki/Send--LUV-test-results-to-an-HTTP-server
+
+Configuring a LUV client
+------------------------
+
+Diskboot: In diskboot image, one can edit the 'luv.cfg' file manually by
+following then same format as mentioned above.
+
+Note: Editing is possible only in Linux systems as luv.cfg is available in boot
+(second) partiton of the disk.
+
+Netboot: In netboot image, a script is employed to edit as netboot image is an
+EFI binary and is available in meta-luv/utils/modify_luv_netboot_efi.py
+
+$ cd luv-yocto/meta-luv/utils/
+luv-yocto/meta-luv/utils$ ls
+modify_luv_netboot_efi.py
+
+For the usage of the script please follow the instructions at
+https://github.com/01org/luv-yocto/wiki page.
+
+Add parameters to disable/enable the testsuites independently
+-------------------------------------------------------------
+While the boot parameter "noluv" disables all the testsuites, LUV does
+not provide any parameter that explicitly enables/disables a specific testsuite.
+To provide such flexibility of enabling or disabling any specific testsuite(s),
+we need a parameter that lets user choose to run or to skip just by editing the
+luv.cfg file.
+
+Add a parameter in luv.cfg called "LUV_TESTS" that stores a set of strings,
+each string representing the individual testsuites. All the testsuites are
+enabled by default and disable a testsuite by removing the string that
+represents the testsuite when needed.

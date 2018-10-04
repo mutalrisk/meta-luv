@@ -1,0 +1,29 @@
+From 444379fb77908b71268a428d45a49f298107ba2f Mon Sep 17 00:00:00 2001
+From: Ricardo Neri <ricardo.neri-calderon@linux.intel.com>
+Date: Thu, 9 Mar 2017 19:32:58 -0800
+Subject: [PATCH] drivers: linux: Do not host system's kernel source directory
+
+When building under the Yocto Project, we perform a cross-build for
+a target that is not the same as the host. Thus, we ougt use the
+kernel source directory of our target's build. Instead, insert a text
+pattern that can be replaced at build time with the appropriate kernel
+source directory.
+
+Signed-off-by: Ricardo Neri <ricardo.neri-calderon@linux.intel.com>
+---
+ drivers/linux/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/linux/Makefile b/drivers/linux/Makefile
+index 69e90e2..012c90e 100644
+--- a/drivers/linux/Makefile
++++ b/drivers/linux/Makefile
+@@ -1,4 +1,4 @@
+-KERNEL_SRC_DIR ?= /lib/modules/`uname -r`/build
++KERNEL_SRC_DIR = LUV_KERNEL_SRC_DIR
+ #KERNEL_SRC_DIR = /usr/src/android/3.0-mid
+ 
+ MACHINE ?= $(shell uname -m)
+-- 
+1.9.1
+
