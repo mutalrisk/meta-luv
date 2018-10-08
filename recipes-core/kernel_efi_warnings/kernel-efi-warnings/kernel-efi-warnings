@@ -8,53 +8,20 @@
 # Search the kmsg buffer for the pattern in PTTRN. If found, print 3 lines
 # before and after the message. Also, print the test name, its description
 # as well as whether the test failed (PTTRN found) or passed (PTTRN not found).
-# If provided, SUPPORT_PTTRN is used to search for a string that indicates
-# that the kernel has the needed support to generate PTTRN in case of error.
-#
-# LEAD_LINES and TRAIL_LINES specify the number of lines before and after
-# PTTRN that should be printed.
 test_dmesg()
 {
     TESTN=${1}
     DESC=${2}
     PTTRN=${3}
-    SEVERITY=${4}
-
-    # Optional parameters. If not neeed, should be passed as empty strings.
-    SUPPORT_PTTRN=${5} # Optional
-    [ ! -z "${5}" ] && LEAD_LINES=${6}  || LEAD_LINES=3
-    [ ! -z "${6}" ] && TRAIL_LINES=${7} || TRAIL_LINES=3
 
     echo "Test: ${TESTN}"
     echo "Description: ${DESC}"
-
-    # If we have a pattern to search for support for the test, use it.
-    if [ ! -z "${SUPPORT_PTTRN}" ]; then
-        dmesg | grep -q "${SUPPORT_PTTRN}"
-        if [ $? -ne 0 ]; then
-            echo "SKIP: Feature ${TESTN} not supported."
-            return 0
-        fi
-    fi
     errs=`dmesg | grep -c "${PTTRN}"`
     if [ $errs -gt 0 ]; then
-        case ${4} in
-        1)
-            SEV="LOW"
-            ;;
-        2)
-            SEV="MEDIUM"
-            ;;
-        3)
-            SEV="HIGH"
-            ;;
-        *)
-            SEV="UNKNOWN"
-        esac
-        echo "FAIL: [${SEV}] Found $errs instances of \"${PTTRN}\"."
+        echo "FAIL: Found $errs instances of \"${PTTRN}\"."
         echo "Related kernel information"
         echo "----------------------------------------------------------"
-        dmesg | grep -A ${TRAIL_LINES} -B ${LEAD_LINES} "${PTTRN}"
+        dmesg | grep -A 3 -B 3 "${PTTRN}"
         echo "----------------------------------------------------------"
     else
        echo "PASS: Pattern \"${PTTRN}\" not found."
@@ -80,9 +47,8 @@ fi
 TEST="EFI_illegal_accesses_test"
 PTTRN="efi: \[Firmware Bug\]: Fixing illegal access to EFI region at PA: "
 DESC="Check for illegal accesses to EFI memory regions."
-SEVERITY=3
 
-test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
+test_dmesg "${TEST}" "${DESC}" "${PTTRN}"
 
 # Check if the kernel has issued messages about potential firmware bugs. The kernel
 # issues these messaages for definite and high priority bugs.
@@ -90,9 +56,8 @@ test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
 TEST="Kernel_FW_BUG"
 PTTRN="\[Firmware Bug\]"
 DESC="Check for potential firmware bugs discovered by the Linux kernel."
-SEVERITY=3
 
-test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
+test_dmesg "${TEST}" "${DESC}" "${PTTRN}"
 
 # Check if the kernel has issued warning messages about the firmware. This level of
 # warning is ussed potentially unclear situations (kernel or firmware to blame?)
@@ -101,9 +66,8 @@ test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
 TEST="Kernel_FW_WARN"
 PTTRN="\[Firmware Warn\]"
 DESC="Check for warnings issued by the Linux kernel about the firmware."
-SEVERITY=2
 
-test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
+test_dmesg "${TEST}" "${DESC}" "${PTTRN}"
 
 # Check if the kernel has issued info messages warning about the firmware. This used
 # to inform about suspicious situations that don't compromise the stability of the
@@ -112,9 +76,8 @@ test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
 TEST="Kernel_FW_INFO"
 PTTRN="\[Firmware Info\]"
 DESC="Check for informative messages issued by the Linux kernel about the firmware."
-SEVERITY=1
 
-test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
+test_dmesg "${TEST}" "${DESC}" "${PTTRN}"
 
 # Check if the entries in EFI_MEMORY_ATTRIBUTES table have appropriate type.
 # According to UEFI spec, all entries in EFI_MEMORY_ATTRIBUTES table should
@@ -124,9 +87,8 @@ test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
 TEST="Kernel_MEM_ATTR_TYPE"
 PTTRN="efi: memattr: Entry type should be RuntimeServiceCode/Data"
 DESC="Check if the entries in EFI_MEMORY_ATTRIBUTES table have appropriate type."
-SEVERITY=3
 
-test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
+test_dmesg "${TEST}" "${DESC}" "${PTTRN}"
 
 # Check if the entries in EFI_MEMORY_ATTRIBUTES table have appropriate attributes
 # set. Presently, UEFI spec defines only three attributes for entries in
@@ -137,9 +99,8 @@ test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
 TEST="Kernel_MEM_ATTR_ATTR"
 PTTRN="efi: memattr: Entry attributes invalid: RO and XP bits both cleared"
 DESC="Check if the entries in EFI_MEMORY_ATTRIBUTES table have appropriate attributes."
-SEVERITY=3
 
-test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
+test_dmesg "${TEST}" "${DESC}" "${PTTRN}"
 
 # Check for alignment of entries in EFI_MEMORY_ATTRIBUTES table. UEFI spec,
 # mentions that all EFI_MEMORY_DESCRIPTORS that require virtual mapping
@@ -149,9 +110,8 @@ test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
 TEST="Kernel_MEM_ATTR_ALGN"
 PTTRN="efi: memattr: Entry address region misaligned"
 DESC="Check for alignment of entries in EFI_MEMORY_ATTRIBUTES table."
-SEVERITY=2
 
-test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
+test_dmesg "${TEST}" "${DESC}" "${PTTRN}"
 
 # Check for entries that describe multiple entries of EFI Memory Map.
 # UEFI spec mentions that every entry in EFI_MEMORY_ATTRIBUTES table must
@@ -162,9 +122,8 @@ test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
 TEST="Kernel_MEM_ATTR_OVLP"
 PTTRN="efi: memattr: Entry covers multiple EFI memory map regions"
 DESC="Check for entries that describe multiple entries of EFI Memory Map."
-SEVERITY=2
 
-test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
+test_dmesg "${TEST}" "${DESC}" "${PTTRN}"
 
 # Check if entry type is same in EFI_MEMORY_ATTRIBUTES and EFI Memory Map.
 # UEFI spec defines that "Type" field of an entry in EFI_MEMORY_ATTRIBUTES table
@@ -174,9 +133,8 @@ test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
 TEST="Kernel_MEM_ATTR_TYMA"
 PTTRN="efi: memattr: Entry type deviates from EFI memory map region type"
 DESC="Check if entry type is same in EFI_MEMORY_ATTRIBUTES and EFI Memory Map."
-SEVERITY=2
 
-test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
+test_dmesg "${TEST}" "${DESC}" "${PTTRN}"
 
 # Check if the entries published in EFI_MEMORY_ATTRIBUTES table match with
 # atleast one entry in EFI Memory Map. This is not stated directly in the
@@ -186,16 +144,5 @@ test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
 TEST="Kernel_MEM_ATTR_MISS"
 PTTRN="efi: memattr: No matching entry found in the EFI memory map"
 DESC="Check if entry is present in EFI Memory Map."
-SEVERITY=3
 
-test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}"
-
-# Check if there ware any machine check errors were logged. These might
-# have been caused by buggy firmware or an actual hardware failure.
-TEST="Kernel_MCE"
-SUPPORT_PTTRN="mce: CPU supports [0-9]* MCE banks"
-DESC="Check if any machine check errors were logged."
-PTTRN="CPU [0-9]\+: Machine Check"
-SEVERITY=1
-
-test_dmesg "${TEST}" "${DESC}" "${PTTRN}" "${SEVERITY}" "${SUPPORT_PTTRN}" 0 6
+test_dmesg "${TEST}" "${DESC}" "${PTTRN}"

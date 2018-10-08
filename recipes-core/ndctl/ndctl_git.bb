@@ -11,7 +11,7 @@ HOMEPAGE = "https://git.kernel.org/cgit/linux/kernel/git/nvdimm/nvdimm.git/tree/
 LICENSE = "GPLv2+"
 LIC_FILES_CHKSUM = "file://COPYING;md5=e66651809cac5da60c8b80e9e4e79e08"
 
-PV = "v60+git${SRCPV}"
+PV = "v56+git${SRCPV}"
 
 RDEPENDS_${PN} = "nvdimm-test"
 COMPATIBLE_HOST='(x86_64).*'
@@ -23,12 +23,10 @@ inherit module-base
 SRC_URI += "git://github.com/pmem/ndctl.git"
 SRC_URI += "file://luv-parser-ndctl"
 SRC_URI += "file://ndctl_runner"
-SRC_URI += "file://ndctl.json"
-
-SRCREV = "3f78a76c7d2339166cc4eeaa9f525ace8607bfd8"
+SRCREV = "78d5421e02272fd068e1637fc2764db3a3776a8a"
 
 S = "${WORKDIR}/git"
-DEPENDS = "virtual/kernel kmod udev json-c"
+DEPENDS = "virtual/kernel kmod udev"
 EXTRA_OECONF += "--enable-test --enable-destructive --disable-docs"
 
 do_configure_prepend() {
@@ -42,6 +40,5 @@ do_install_append() {
 
 FILES_${PN} += "/usr/share/bash-completion/completions/ndctl"
 LUV_TEST_LOG_PARSER="luv-parser-ndctl"
-LUV_TEST_JSON="ndctl.json"
 LUV_TEST="ndctl_runner"
 LUV_TEST_ARGS=""

@@ -3,44 +3,30 @@
 # This file will automatically generate and install a test runner
 # script for a package.
 
-LUV_TEST_ARGS ?= ""
-LUV_TEST ?= "${PN}"
+LUV_TEST_ARGS = ""
+LUV_TEST = "${PN}"
 
-python __anonymous() {
-    json = d.getVar('LUV_TEST_JSON')
-    if (len(json) > 0):
-        d.appendVar("RDEPENDS_%s" % d.getVar('PN'), " jq")
-}
-
-LUV_TEST_LOG_PARSER ?= ""
-LUV_TEST_JSON ?= ""
-
-python __anonymous() {
-    json = d.getVar('LUV_TEST_JSON')
-    if (len(json) > 0):
-        d.appendVar("RDEPENDS_%s" % d.getVar('PN'), " jq")
-}
+LUV_TEST_LOG_PARSER = ""
 
 # The installation directory of test runner scripts and log parsers
-runnerdir = "${sysconfdir}/luv/tests"
-parserdir = "${sysconfdir}/luv/parsers"
+RUNNER_PATH = "${sysconfdir}/luv/tests"
+PARSER_PATH = "${sysconfdir}/luv/parsers"
 
 FILES_${PN} += "${RUNNER_PATH}/${PN} ${PARSER_PATH}/${PN}"
 
 do_install_append() {
-    install -d ${D}${runnerdir}
-    install -d ${D}${parserdir}
+    runner_dir="${D}${RUNNER_PATH}"
+    install -d $runner_dir
+
+    log_dir="${D}${PARSER_PATH}"
+    install -d $log_dir
 
     if [ ! -z ${LUV_TEST_LOG_PARSER} ]; then
-        install -m 755 ${WORKDIR}/${LUV_TEST_LOG_PARSER} ${D}${parserdir}/${PN}
-        sed -i -e 's@PARSERDIR@${parserdir}@g' ${D}${parserdir}/${PN}
+        parser="${PARSER_PATH}/${PN}"
+        install -m 755 ${WORKDIR}/${LUV_TEST_LOG_PARSER} ${D}${parser}
     fi
 
-    if [ ! -z ${LUV_TEST_JSON} ]; then
-        install -m 644 ${WORKDIR}/${LUV_TEST_JSON} ${D}${parserdir}
-    fi
-
-    cat > ${D}${runnerdir}/${PN} <<EOF
+    cat > ${runner_dir}/${PN} <<EOF
 #!/bin/sh
 #
 # This is an automatically generated test runner script that is invoked
@@ -51,5 +37,5 @@ do_install_append() {
 
 ${LUV_TEST} ${LUV_TEST_ARGS}
 EOF
-    chmod +x ${D}${runnerdir}/${PN}
+    chmod +x ${runner_dir}/${PN}
 }

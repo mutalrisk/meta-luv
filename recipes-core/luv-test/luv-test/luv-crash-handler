@@ -11,14 +11,13 @@
 # are obtained from a disk partition identified by its UUID. Behavior changes
 # according to the runlevel.
 
-. luv-message
+plymouth_write() {
+    /bin/plymouth display-message --text="$1"
+}
 
-CURRENT_CMDLINE=`cat /proc/cmdline | sed -e 's/\<luv.pstore-tests\>//g'`
-if grep -q luv.pstore-tests /proc/cmdline; then
-    KEXEC_APPEND="${CURRENT_CMDLINE}"
-else
-    KEXEC_APPEND="${CURRENT_CMDLINE} noluv systemd.unit=graphical.target irqpoll maxcpus=1 reset_devices luv.crash"
-fi
+plymouth_hide() {
+    /bin/plymouth hide-message --text="$1"
+}
 
 # The command-line parameter luv.crash tells us if we are in a regular boot.
 # and we only have to prepare everything in case there is a kernel crash in
@@ -28,7 +27,7 @@ grep -q luv.crash /proc/cmdline
 if [ $? -eq 1 ]; then
     # Not all disks may be ready to mount at this moment.
     # Thus, we need to wait for them.
-    luv_msg_write "Preparing crash handler..."
+    plymouth_write "Preparing crash handler..."
 
     LUV_BOOT_PARTITION=/mnt/boot/
     LUV_BOOT_PARTITION_UUID=423C-C2C8
@@ -38,12 +37,13 @@ if [ $? -eq 1 ]; then
     if [ $? -eq 0 ]; then
         mount ${LUV_DISK_DEVICE} ${LUV_BOOT_PARTITION}
         if [ $? -eq 0 ]; then
-            kexec -p --initrd=${LUV_BOOT_PARTITION}initrd --append="${KEXEC_APPEND}" \
-                  ${LUV_BOOT_PARTITION}kernel_image
+            kexec -p --initrd=${LUV_BOOT_PARTITION}initrd --reuse-cmdline \
+                  --append="noluv systemd.unit=graphical.target irqpoll maxcpus=1 reset_devices luv.crash" \
+                  ${LUV_BOOT_PARTITION}vmlinuz
             umount ${LUV_BOOT_PARTITION}
         fi
     fi
-    luv_msg_hide "Preparing crash handler..."
+    plymouth_hide "Preparing crash handler..."
 else
 # If we have the luv.crash kernel parameter, we just recovered from a crash.
 # We need to dump the /proc/vmcore file.
@@ -61,7 +61,9 @@ else
     submit a bug report on https://github.com/01org/luv-yocto/issues. In either
     case, please submit the contents of ${LUV_DEBUG_FILE}."
 
-    luv_msg_write "Recovery Boot. Saving debug info..." 2
+    plymouth_write "Recovery Boot. Saving debug info..."
+    sleep 1
+    plymouth_hide "Recovery Boot. Saving debug info..."
 
     mkdir -p ${LUV_STORAGE}
     if [ $? -eq 0 ]; then
@@ -78,10 +80,10 @@ else
     fi
 
     if [ -f ${LUV_DEBUG_DIR}${LUV_DEBUG_FILE} ]; then
-        luv_msg_write "Recovery boot. Debug info saved on your non-volatile media.
+        plymouth_write "Recovery boot. Debug info saved on your non-volatile media.
                        You may safely remove it."
     else
-        luv_msg_write "Recovery boot. Could not save debug info."
+        plymouth_write "Recovery boot. Could not save debug info."
     fi
 
     mountpoint -q ${LUV_STORAGE}

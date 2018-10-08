@@ -43,13 +43,11 @@ Descriptions of section entries:
 
 General Project Administration
 ------------------------------
-M: Megha Dey <megha.dey@intel.com>
-R: Ricardo Neri <ricardo.neri-calderon@linux.intel.com>
+M: Ricardo Neri <ricardo.neri@intel.com>
 T: https://github.com/01org/luv-yocto.git
 
 x86
-M: Megha Dey <megha.dey@intel.com>
-R: Ricardo Neri <ricardo.neri-calderon@linux.intel.com>
+M: Ricardo Neri <ricardo.neri@intel.com>
 
 AArch64
 M: Naresh Bhat <naresh.bhat@linaro.org>
@@ -57,52 +55,46 @@ M: Naresh Bhat <naresh.bhat@linaro.org>
 Table of Contents
 =================
 
-    I. Adding meta-luv and meta-oe layers to your build
-   II. Using GIT with a proxy
-  III. Building LUV
-   IV. Executing ACPI NFIT destructive tests
-    V. Use of Netconsole in LUV
-   VI. Obtaining debug information
-  VII. Other LUV boot parameters
- VIII. Submitting results to a remote location
-   IX. Add parameters to disable/enable the testsuites independently
+   I. Adding the meta-luv layer to your build
+  II. Building LUV
+ III. Executing ACPI NFIT destructive tests
+  IV. Use of Netconsole in LUV
+   V. Obtaining debug information
+  VI. Other LUV boot parameters
+ VII. Submitting results to a remote location
 
 
-I. Setting LUV build system
-===========================
+I. Adding the meta-luv layer to your build
+=================================================
 
-LUV uses additional layers to build correctly. The meta-luv layer
-provides the LUV-specific software component needed to run tests
-and compile results. The meta-oe layer provides a collection of
-auxiliary packages needed when building a live image.
+In order to use this layer, you need to make the build system aware of
+it.
 
-A script "luv-setup" is provided in the root directory of the source code.
-After cloning the repo. one needs to do:
-. luv-setup
-to setup the default DISTRO out of the box, along with adding luv-specific
-layers to BBLAYERS. By default, MACHINE is set to qemux86-64 and can be
-changed if one wishes to build for any other type of system.
+Assuming the meta-luv layer exists at the top-level of your
+yocto build tree, you can add it to the build system by adding the
+location of the meta-luv layer to bblayers.conf, along with any
+other layers needed. e.g.:
 
-II. Using GIT with a proxy
-==========================
+  BBLAYERS ?= " \
+    /path/to/yocto/meta \
+    /path/to/yocto/meta-yocto \
+    /path/to/yocto/meta-yocto-bsp \
+    /path/to/yocto/meta-luv \
+    "
 
-To use git with a proxy, you must use an external git proxy command.
-To do so:
-1. Copy the site.conf.sample file from meta-poky/conf/ to build/conf/
-2. Rename this file as site.conf
-3. Uncomment the following in site.conf
-            GIT_PROXY_COMMAND ?= "oe-git-proxy"
-4. Replace "oe-git-proxy" with the git proxy command script on your
-   host system.
-
-III. Building LUV
+II. Building LUV
 =================================================
 
 LUV can boot from either a local network or a disk. The process to build
 is slightly different for each case.
 
-By default, we build from a physical disk (DISTRO = "luv" in local.conf).
-One simply needs to do:
+If you intend to build an image to boot from a physical disk, then it is
+necessary to specify the luv distribution in local.conf.
+e.g.:
+
+  DISTRO = "luv"
+
+Afterwards, you can simply do:
 
   bitbake luv-live-image
 
@@ -116,7 +108,7 @@ Afterwards, you can simply do:
 
   bitbake luv-netboot-image
 
-IV. Executing ACPI NFIT destructive tests
+III. Executing ACPI NFIT destructive tests
 =================================================
 
 The NDCTL test suite includes a batch of destructive tests. These are
@@ -127,7 +119,7 @@ command that loads the Linux kernel. The file to implement this change
 is EFI/BOOT/grub.cfg located in the bootable partition of the LUV
 media.
 
-V. Use of Netconsole in LUV
+IV. Use of Netconsole in LUV
 =================================================
 
 Netconsole is a Linux feature and a kernel module that sends all
@@ -212,7 +204,7 @@ inet addr is the IP address we are looking for.
 Choose port numbers which are not reserved for any kernel activities
 like 4000's and above. port 64001 is chosen in luv-netconsole.
 
-VI. Obtaining debug information
+V. Obtaining debug information
 =================================================
 
 Sometimes is the execution of tests may end unexpectedly. In this kind
@@ -227,7 +219,7 @@ When luv.debug is enabled, the LUV test manager will leave a file
 named luv-debug.log inside the time-stamped directory luv-results-
 yyyy-mm-dd--hh-mm--ss with the debug data it collected.
 
-VII. Other LUV boot parameters
+VI. Other LUV boot parameters
 =================================================
 
 These parameters can be also added to the linux kernel command line
@@ -253,13 +245,8 @@ to alter the default behaviour of LUV.
     we have to prepare everything in case there is a kernel crash in the
     future. Unlike the other LUV boot parameters, this one is not intended
     to be used directly.
-  luv.pstore-tests
-    This kernel parameter will enable the pstore_crash_test test of the
-    pstore-test suite. This test will cause a reboot post which the
-    pstore_post_reboot_tests would run. Without this parameter, only the
-    pstore_tests test would run.
 
-VIII. Submitting results to a remote location
+VII. Submitting results to a remote location
 ==============================================
 
 When LUV boots via network (netboot), there is no way of storing the results
@@ -321,16 +308,3 @@ modify_luv_netboot_efi.py
 
 For the usage of the script please follow the instructions at
 https://github.com/01org/luv-yocto/wiki page.
-
-Add parameters to disable/enable the testsuites independently
--------------------------------------------------------------
-While the boot parameter "noluv" disables all the testsuites, LUV does
-not provide any parameter that explicitly enables/disables a specific testsuite.
-To provide such flexibility of enabling or disabling any specific testsuite(s),
-we need a parameter that lets user choose to run or to skip just by editing the
-luv.cfg file.
-
-Add a parameter in luv.cfg called "LUV_TESTS" that stores a set of strings,
-each string representing the individual testsuites. All the testsuites are
-enabled by default and disable a testsuite by removing the string that
-represents the testsuite when needed.

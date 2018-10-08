@@ -3,8 +3,7 @@
 # Parse the output of ndctl and write a luv-test-manager compatible
 # log to stdout.
 
-awk -v TESTS_JSON="PARSERDIR/ndctl.json" -F: '
-@include "PARSERDIR/libparser"
+awk -F: '
 
 function test_info(test_name, results) {
         "date +%H:%M:%S:%N" | getline current_time;
@@ -25,7 +24,7 @@ function test_info(test_name, results) {
         }
 
 /\ERROR/ {
-        results = "0 0 0 0 0 1";
+        results = "0 0 0 0 1";
         print test_info($1, results);
         info = ""
 
@@ -33,7 +32,7 @@ function test_info(test_name, results) {
 	}
 
 /\SKIP/ {
-        results =  "0 0 0 0 1 0";
+        results =  "0 0 0 1 0";
         print test_info($1, results);
         info = ""
 
@@ -41,8 +40,7 @@ function test_info(test_name, results) {
         }
 
 /\FAIL/ {
-        severity = get_severity($1, TESTS_JSON);
-        results = sprintf("0 1 %d 0 0 0", severity);
+        results = "0 1 0 0 0";
         print test_info($1, results);
         info = ""
 
@@ -50,7 +48,7 @@ function test_info(test_name, results) {
         }
 
 /\PASS/ {
-        results = "1 0 0 0 0 0";
+        results = "1 0 0 0 0";
         print test_info($1, results);
         info = ""
 

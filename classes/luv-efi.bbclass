@@ -7,26 +7,29 @@
 #
 
 # The x86 luv-netboot-image depend on bits package.  But the AArch64 is not.
-def get_bits_depends(d):
+def get_bits_depends(bb, d):
          import re
-         deps = d.getVar('TARGET_PREFIX', True)
+         deps = bb.data.getVar('TARGET_PREFIX', d, True)
          if re.search("(x86_64|i.86).*",deps):
                  return "bits:do_deploy"
          if re.search("aarch64",deps):
                  return ""
-_BITSDEPENDS = "${@get_bits_depends(d)}"
+_BITSDEPENDS = "${@get_bits_depends(bb, d)}"
 
-do_bootimg[depends] += "${MLPREFIX}grub-efi:do_deploy \
+# The x86 build is depends on grub-efi and AArch64 build depends on grub_git
+def get_grub_depends(bb, d):
+         import re
+         deps = bb.data.getVar('TARGET_PREFIX', d, True)
+         if re.search("(x86_64|i.86).*",deps):
+                 return "${MLPREFIX}grub-efi"
+         if re.search("aarch64",deps):
+                 return "${MLPREFIX}grub"
+
+_RDEPENDS = "${@get_grub_depends(bb, d)}"
+do_bootimg[depends] += "${_RDEPENDS}:do_deploy \
                         sbsigntool-native:do_populate_sysroot"
 
-GRUB_EFI_LOADER_IMAGE_x86-64 = "grub-efi-bootx64.efi"
-GRUB_EFI_LOADER_IMAGE_x86 = "grub-efi-bootia32.efi"
-GRUB_EFI_LOADER_IMAGE_aarch64 = "grub-efi-bootaa64.efi"
-
-DEST_EFI_LOADER_IMAGE_x86-64 = "bootx64.efi"
-DEST_EFI_LOADER_IMAGE_x86 = "bootia32.efi"
-DEST_EFI_LOADER_IMAGE_aarch64 = "bootaa64.efi"
-
+EFI_LOADER_IMAGE = "${@base_conditional('TARGET_ARCH', 'x86_64', 'bootx64.efi', 'bootia32.efi', d)}"
 EFIDIR = "/EFI/BOOT"
 
 LUV_FOR_NETBOOT="${@bb.utils.contains('DISTRO_FEATURES', 'luv-netboot','1' , '0', d)}"
@@ -54,27 +57,32 @@ efi_populate() {
 
     # Install grub2 in EFI directory
     if [ "${TARGET_ARCH}" = "aarch64" ]; then
-		install -m 0644 ${DEPLOY_DIR_IMAGE}/${GRUB_EFI_LOADER_IMAGE} ${DEST}${EFIDIR}/${DEST_EFI_LOADER_IMAGE}
-                echo "${DEST_EFI_LOADER_IMAGE}" > ${DEST}${EFIDIR}/startup.nsh
+		install -m 0644 ${DEPLOY_DIR_IMAGE}/bootaa64.efi ${DEST}${EFIDIR}
+                echo "bootaa64.efi" > ${DEST}${EFIDIR}/startup.nsh
 
     # TODO: need conditional signing; e.g., if (DISTRO_FEATURES contains secure_boot)
     # shim bootloader does not seem to work with i386. Thus we don't use it for 32-bit
-    elif [ "${TARGET_ARCH}" = "x86_64" ] ; then
+    elif [ "${TARGET_ARCH}" = "x86_64" ] && [ "${LUV_FOR_NETBOOT}" = "0"  ]; then
                 # sign grub2 bootloader
                 sbsign --key ${DEPLOY_DIR_IMAGE}/LUV.key --cert ${DEPLOY_DIR_IMAGE}/LUV.crt \
-                       --output ${DEPLOY_DIR_IMAGE}/grubx64.efi ${DEPLOY_DIR_IMAGE}/${GRUB_EFI_LOADER_IMAGE}
+                       --output ${DEPLOY_DIR_IMAGE}/grubx64.efi ${DEPLOY_DIR_IMAGE}/${EFI_LOADER_IMAGE}
 
+                # temporarily rename the unsigned grub2 bootloader
+                mv ${DEPLOY_DIR_IMAGE}/${EFI_LOADER_IMAGE} ${DEPLOY_DIR_IMAGE}/${EFI_LOADER_IMAGE}-unsigned
                 # shim will become our main bootloader
-                mv ${DEPLOY_DIR_IMAGE}/shim.efi  ${DEPLOY_DIR_IMAGE}/${DEST_EFI_LOADER_IMAGE}
+                mv ${DEPLOY_DIR_IMAGE}/shim.efi  ${DEPLOY_DIR_IMAGE}/${EFI_LOADER_IMAGE}
 
                 # install everything
-                install -m 0644 ${DEPLOY_DIR_IMAGE}/${DEST_EFI_LOADER_IMAGE} ${DEST}${EFIDIR}
+                install -m 0644 ${DEPLOY_DIR_IMAGE}/${EFI_LOADER_IMAGE} ${DEST}${EFIDIR}
                 install -m 0644 ${DEPLOY_DIR_IMAGE}/grubx64.efi ${DEST}${EFIDIR}
                 install -m 0644 ${DEPLOY_DIR_IMAGE}/MokManager.efi ${DEST}${EFIDIR}
                 install -m 0644 ${DEPLOY_DIR_IMAGE}/LUV.cer ${DEST}
 
                 # restore files to leave all in good shape for all the callers of the funciton
-                cp ${DEPLOY_DIR_IMAGE}/${DEST_EFI_LOADER_IMAGE} ${DEPLOY_DIR_IMAGE}/shim.efi
+                mv ${DEPLOY_DIR_IMAGE}/${EFI_LOADER_IMAGE} ${DEPLOY_DIR_IMAGE}/shim.efi
+                mv ${DEPLOY_DIR_IMAGE}/${EFI_LOADER_IMAGE}-unsigned ${DEPLOY_DIR_IMAGE}/${EFI_LOADER_IMAGE}
+    else
+		install -m 0644 ${DEPLOY_DIR_IMAGE}/${EFI_LOADER_IMAGE} ${DEST}${EFIDIR}
     fi
 
     if echo "${TARGET_ARCH}" | grep -q "i.86" || [ "${TARGET_ARCH}" = "x86_64" ]; then
@@ -90,7 +98,6 @@ efi_populate() {
     install -m 0644 ${LUV_CFG} ${DEST}
 }
 
-BITS_EFI_LOADER_IMAGE = "${DEST_EFI_LOADER_IMAGE}"
 efi_populate_bits() {
     DEST=$1
     # TODO: weird behavior here. When building luv-live-image,
@@ -107,21 +114,21 @@ efi_populate_bits() {
     install -d ${DEST}${EFIDIR}/bits
 
     if [ "${LUV_FOR_NETBOOT}" = "0" ]; then
-        mv ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${BITS_EFI_LOADER_IMAGE} \
-           ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${BITS_EFI_LOADER_IMAGE}-unsigned
+        mv ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${EFI_LOADER_IMAGE} \
+           ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${EFI_LOADER_IMAGE}-unsigned
 
         sbsign --key ${DEPLOY_DIR_IMAGE}/LUV.key --cert ${DEPLOY_DIR_IMAGE}/LUV.crt \
-               --output ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${BITS_EFI_LOADER_IMAGE} \
-               ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${BITS_EFI_LOADER_IMAGE}-unsigned
+               --output ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${EFI_LOADER_IMAGE} \
+               ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${EFI_LOADER_IMAGE}-unsigned
 
-        install -m 0644 ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${BITS_EFI_LOADER_IMAGE} \
+        install -m 0644 ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${EFI_LOADER_IMAGE} \
                 ${DEST}${EFIDIR}/bits/
         # restore files
-        rm ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${BITS_EFI_LOADER_IMAGE}
-        mv ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${BITS_EFI_LOADER_IMAGE}-unsigned \
-           ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${BITS_EFI_LOADER_IMAGE}
+        rm ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${EFI_LOADER_IMAGE}
+        mv ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${EFI_LOADER_IMAGE}-unsigned \
+           ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${EFI_LOADER_IMAGE}
     else
-        install -m 0644 ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${BITS_EFI_LOADER_IMAGE} \
+        install -m 0644 ${DEPLOY_DIR_IMAGE}/bits/efi/boot/${EFI_LOADER_IMAGE} \
                 ${DEST}${EFIDIR}/bits/
     fi
 }
@@ -134,13 +141,13 @@ efi_iso_populate() {
     cp -r $iso_dir/${EFIDIR}/* ${EFIIMGDIR}${EFIDIR}
 
     if [ "${TARGET_ARCH}" = "aarch64" ] ; then
-        echo "${DEST_EFI_LOADER_IMAGE}" > ${EFIIMGDIR}/startup.nsh
+        echo "bootaa64.efi" > ${EFIIMGDIR}/startup.nsh
     fi
     if echo "${TARGET_ARCH}" | grep -q "i.86" || [ "${TARGET_ARCH}" = "x86_64" ]; then
         echo "${GRUB_IMAGE}" > ${EFIIMGDIR}/startup.nsh
     fi
 
-    cp $iso_dir/${KERNEL_IMAGETYPE} ${EFIIMGDIR}/
+    cp $iso_dir/vmlinuz ${EFIIMGDIR}
     if [ -f "$iso_dir/initrd" ] ; then
         cp $iso_dir/initrd ${EFIIMGDIR}
     fi
@@ -171,8 +178,7 @@ python build_efi_cfg() {
        cfgfile.write('fallback=0\n')
 
     cfgfile.write('menuentry \'luv\' {\n')
-    kernel = d.getVar('KERNEL_IMAGETYPE')
-    cfgfile.write('linux /%s ' % (kernel))
+    cfgfile.write('linux /vmlinuz ')
 
     cmdline = d.getVar('CMDLINE', True)
     if cmdline:
@@ -180,9 +186,6 @@ python build_efi_cfg() {
 
     cfgfile.write(' luv_netconsole=${LUV_NETCONSOLE}')
     cfgfile.write(' luv_storage=${LUV_STORAGE_URL}')
-    cfgfile.write(' luv_tests=${LUV_TESTS}')
-    cfgfile.write(' luv_reboot_tests=${LUV_REBOOT_TESTS}')
-    cfgfile.write(' luv_bits_can_run=${LUV_BITS_CAN_RUN}')
 
     cfgfile.write('\n')
 
@@ -191,9 +194,9 @@ python build_efi_cfg() {
     cfgfile.write(' %s' % extra_initrd)
     cfgfile.write('\n}\n')
 
-    loader = d.getVar('DEST_EFI_LOADER_IMAGE', True)
+    loader = d.getVar('EFI_LOADER_IMAGE', True)
     if not loader:
-        raise bb.build.FuncFailed('Unable to find DEST_EFI_LOADER_IMAGE')
+        raise bb.build.FuncFailed('Unable to find EFI_LOADER_IMAGE')
 
     if re.search("(x86_64|i.86)", target):
        cfgfile.write('menuentry \'bits\' {\n')
@@ -235,22 +238,6 @@ python build_luv_cfg() {
 
     comment= "This is the parameter for url of the server/website"
     name = 'LUVCFG_storage_url'
-    luvcfg.write(insert_var(name, comment, d))
-
-    comment = 'These are the selected test suites for execution. Edit if needed'
-    name = 'LUVCFG_tests'
-    luvcfg.write(insert_var(name, comment, d))
-
-    comment = 'Add test suites if needed, to run reboot tests in LUV'
-    name = 'LUVCFG_reboot_tests'
-    luvcfg.write(insert_var(name, comment, d))
-
-    luvcfg.write('\n#####################################################\n')
-    luvcfg.write('## User should not modify any parameter below this ##\n')
-    luvcfg.write('#####################################################\n')
-
-    comment = 'Do not run bits if exit_boot_services fail'
-    name = 'LUVCFG_bits_can_run'
     luvcfg.write(insert_var(name, comment, d))
 
     # pad with spaces only if luv-netboot is present, so to make EFI binary

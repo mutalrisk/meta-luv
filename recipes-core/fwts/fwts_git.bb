@@ -4,9 +4,9 @@ HOMEPAGE = "https://wiki.ubuntu.com/Kernel/Reference/fwts"
 LICENSE = "GPLv2+"
 LIC_FILES_CHKSUM = "file://src/main.c;beginline=1;endline=16;md5=31da590f3e9f3bd34dcdb9e4db568519"
 
-PV = "V18.06.00+git${SRCPV}"
+PV = "V17.07.00+git${SRCPV}"
 
-SRCREV = "bba3a1ce52376a33177f9e77a8a90bdcbd24005b"
+SRCREV = "215a0b5b5c5b3b54bd7ef654429b5645f17906fa"
 SRC_URI = "git://kernel.ubuntu.com/hwe/fwts.git \
            file://luv-parser-fwts \
           "
@@ -15,11 +15,9 @@ S = "${WORKDIR}/git"
 DEPENDS = "autoconf automake libtool libpcre json-c flex bison \
 	virtual/kernel glib-2.0"
 
-inherit autotools-brokensep luv-test module-base pkgconfig
+inherit autotools-brokensep luv-test module-base
 
-CFLAGS += "-I${STAGING_INCDIR}/json-c"
-CFLAGS += "-I${STAGING_INCDIR}/glib-2.0"
-CFLAGS += "-I${STAGING_LIBDIR}/glib-2.0/include"
+CFLAGS += "-I${STAGING_INCDIR}/json"
 
 do_unpack[depends] += "virtual/kernel:do_populate_sysroot"
 
@@ -58,4 +56,3 @@ LUV_TEST_ARGS="-r stdout -q --uefitests --log-format='%owner;%field ' \
 FILES_${PN} += "${libdir}/fwts/lib*${SOLIBS}"
 FILES_${PN} += "/lib/modules/${KERNEL_VERSION}/extra/efi_runtime.ko"
 FILES_${PN}-dev += "${libdir}/fwts/lib*${SOLIBSDEV} ${libdir}/fwts/lib*.la"
-FILES_${PN} += "/usr/share/bash-completion"

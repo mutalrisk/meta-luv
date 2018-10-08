@@ -53,24 +53,13 @@ SRC_URI = "gitsm://github.com/biosbits/bits.git;protocol=http  \
            file://BITS-init.py-Enable-logging-debugging-in-bits-via-ne.patch \
            file://luv-test-bits \
            file://luv-parser-bits \
-           file://bits.json \
            file://0001-only-output-to-log.patch;apply=no \
-           file://GRUB-util-include-sysmacros.h-header.patch \
-           file://GRUB-fix-switch-fallthrough-cases-with-GCC7.patch \
-           file://GRUB-btrfs-avoid-used-uninitialized-error-with-GCC7.patch \
-           file://PYTHON-Fix-gcc7-warnings-when-calling-PyMem_MALLOC-macros.patch \
-           file://libffi-fix-switch-fallthrough-cases-with-GCC7.patch \
-           file://PYTHON-Fix-switch-fallthrough-cases-with-GCC7.patch \
-           file://BITS-toplevel.cfg-Disable-Bits-when-user-chose-not-to-run.patch \
-           file://BITS-init.py-Add-a-new-unittest-MCE-tests-to-BITS.patch \
-           file://BITS-toplevel.cfg-Disable-Bits-when-LUV_BITS_CAN_RUN-is-not-true.patch \
-           file://BITS-Make-LUV_BITS_CAN_RUN-false-after-BITS-starts.patch \
           "
 
 S = "${WORKDIR}/git"
 
 DEPENDS = "virtual/gettext autogen-native gettext-native sqlite3-native zip-native \
-           xorriso-native bits-native flex bison autogen-native"
+           xorriso-native bits-native bits-python-native"
 RDEPENDS_${PN}_class-target = "coreutils findutils cpio"
 
 COMPATIBLE_HOST = '(x86_64.*|i.86.*)-(linux|freebsd.*)'
@@ -95,7 +84,6 @@ LUV_NETBOOT_MODULES = "${@bb.utils.contains('DISTRO_FEATURES', 'luv-netboot', "m
 LUV_NETBOOT_ROOT = "${@bb.utils.contains('DISTRO_FEATURES', 'luv-netboot', "(memdisk)", "", d)}"
 
 LUV_TEST_LOG_PARSER = "luv-parser-bits"
-LUV_TEST_JSON = "bits.json"
 
 do_deploy() {
 

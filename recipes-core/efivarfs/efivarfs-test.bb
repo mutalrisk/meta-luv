@@ -2,20 +2,20 @@ DESCRIPTION = "EFI varfs tests"
 HOMEPAGE = "https://www.kernel.org/pub/linux/kernel"
 SECTION = "base"
 LICENSE = "GPLv2"
-LIC_FILES_CHKSUM = "file://${STAGING_KERNEL_DIR}/COPYING;md5=bbea815ee2795b2f4230826c0c6b8814"
+LIC_FILES_CHKSUM = "file://${STAGING_KERNEL_DIR}/COPYING;md5=d7810fab7487fb0aad327b76f1be7cd7"
 KBRANCH="stable"
 
 # Picking up matts branch
-SRC_URI = "file://luv-parser-efivarfs \
-           file://efivarfs \
-           file://efivarfs.json"
+SRC_URI = "file://bash-to-sh.patch \
+          file://luv-parser-efivarfs \
+          file://efivarfs"
 
 #we need some of the stuff below
 DEPENDS_class-native += "qemu-native"
 SRCREV="${AUTOREV}"
 inherit autotools luv-test
 
-RDEPENDS_${PN} += "e2fsprogs bash"
+RDEPENDS_${PN} += "e2fsprogs"
 
 do_fetch[noexec] = "1"
 do_unpack[depends] += "virtual/kernel:do_shared_workdir"
@@ -72,5 +72,4 @@ do_install() {
 }
 
 LUV_TEST_LOG_PARSER="luv-parser-efivarfs"
-LUV_TEST_JSON="efivarfs.json"
 LUV_TEST="efivarfs"

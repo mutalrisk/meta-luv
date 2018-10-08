@@ -5,7 +5,6 @@ RDEPENDS_${PN} = "ttf-dejavu-common ttf-dejavu-sans ttf-dejavu-sans-mono"
 SRC_URI+= "file://0001-plymouth-Add-the-retain-splash-option.patch \
 	   file://0001-plymouth-Change-the-plymouth-defaults.patch \
 	   file://0001-plymouth-modify-the-script-theme.patch \
-           file://0001-plymouth-Prevent-overwriting-of-messages.patch \
 	   ${SPLASH_IMAGES}"
 
 SPLASH_IMAGES = "file://luv-splash.png;outsuffix=default"
@@ -14,11 +13,11 @@ def get_target_arch(d):
  import re
  target = d.getVar('TARGET_ARCH', True)
  if target == "x86_64":
-    return '7'
- elif re.match('i.86', target):
     return '6'
+ elif re.match('i.86', target):
+    return '5'
  elif re.match('aarch64', target):
-    return '4'
+    return '3'
  else:
     raise bb.parse.SkipPackage("TARGET_ARCH %s not supported!" % target)
 

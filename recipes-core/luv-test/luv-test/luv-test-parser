@@ -45,10 +45,8 @@ function html_create_div(elem_id, class, contents, closediv)
 # color. Users of this script are responsible of providing the definition
 # of the toggle function.
 
-function html_create_testinfo_ctrl_link(id, text, severity)
+function html_create_testinfo_ctrl_link(id, text)
 {
-        severity_icon = ""
-
         if (text ~ /pass/) {
                 status = "passed";
         } else if (text ~ /skip/) {
@@ -59,69 +57,15 @@ function html_create_testinfo_ctrl_link(id, text, severity)
                 status = "warning";
         } else if (text ~ /fail/) {
                 status = "failed";
-
-                switch (severity) {
-                case 0:
-			# No severity is specified.
-			break;
-                case 1:
-                        severity_icon = severity_icon "<img src=\"parsed/icon_fail1.png\">"
-                        break;
-                case 2:
-                        severity_icon = severity_icon "<img src=\"parsed/icon_fail2.png\">"
-                        break;
-                case 3:
-                        severity_icon = severity_icon "<img src=\"parsed/icon_fail3.png\">"
-                        break;
-                default:
-                        severity_icon = severity_icon "<img src=\"parsed/icon_failunk.png\">"
-                }
         } else {
                 status = "";
         }
-
         link = "toggle('\''" id "'\'');return false;";
         html = "<a id=\"control_" id "\" href=\"#\" ";
         html = html "onClick=\"" link "\">[+]</a>";
-        html = html "<span class=\"" status "\">" text severity_icon;
+        html = html "<span class=\"" status "\">" text;
         html = html "</span>\n";
         return html;
-}
-
-function html_sanitize_text(text)
-{
-        gsub(/</, "\\&lt", text);
-        gsub(/>/, "\\&gt", text);
-        gsub(/\n/, "<br>\n", text);
-        return text;
-}
-
-function get_severity_txt(severity) {
-	text = ""
-
-	if (severity < 0 || severity > 3)
-		return "?";
-
-	for (i = 0; i < severity; i++)
-		text = text "!";
-
-	return text
-}
-
-/^1.2/ {
-	testsuite=$2
-	continue_parsing=$3
-	unittest=$4
-	tag=$5
-
-	if (tag == "RESULT") {
-		passes=$6
-		fails=$7
-		severity=$8
-		aborts=$9
-		skips=$10
-		warns=$11
-	}
 }
 
 /^1.1/ {
@@ -132,10 +76,9 @@ function get_severity_txt(severity) {
 	if (tag == "RESULT") {
 		passes=$6
 		fails=$7
-		severity=$8
-		aborts=$9
-		skips=$10
-		warns=$11
+		aborts=$8
+		skips=$9
+		warns=$10
 	}
 }
 
@@ -147,10 +90,9 @@ function get_severity_txt(severity) {
 	if (tag == "RESULT") {
 		passes=$5
 		fails=$6
-		severity=$7
-		aborts=$8
-		skips=$9
-		warns=$11
+		aborts=$7
+		skips=$8
+		warns=$10
 	}
 }
 
@@ -160,23 +102,22 @@ function get_severity_txt(severity) {
 			HTML = "/dev/null"
 		}
 		b = 1;
-		if (!continue_parsing) {
-			printf ("    [-] %s\n", testsuite);
-			fflush("");
-			# begin HTML code for this test suite
-			testsuite = html_sanitize_text(testsuite);
-			ts_content =  html_create_testinfo_ctrl_link(testsuite,
-								     testsuite);
-			ts_content =  ts_content html_create_div("content_" testsuite,
-								 "testsuite", "", 0);
-			print html_create_div(testsuite, "", ts_content, 0) >> HTML;
-		}
+		printf ("    [-] %s\n", testsuite);
+		fflush("");
+		# begin HTML code for this test suite
+		ts_content =  html_create_testinfo_ctrl_link(testsuite,
+							     testsuite);
+		ts_content =  ts_content html_create_div("content_" testsuite,
+							 "testsuite", "", 0);
+		print html_create_div(testsuite, "", ts_content, 0) >> HTML;
 	}
 
 	#
 	# Parse tags
 	#
 	if (tag == "START") {
+		printf("      [+] %s... ", unittest);
+		fflush("");
 		# initialize empty string for the info of this test
 		info = "";
 	}
@@ -196,21 +137,15 @@ function get_severity_txt(severity) {
 		# skipped/aborted.
 		#
 		# Passes indicate everything is fine.
-		severity_str = ""
-
-		if (fails > 0 ) {
-			unittest_status = sprintf("%d failures", fails);
-			severity_str = get_severity_txt(severity)
-		}
+		if (fails > 0)
+			unittest_status = sprintf("%d failures!", fails);
 		else if ((aborts > 0 || skips > 0) && !passes)
 			unittest_status = "skipped";
 		else if (warns > 0)
 			unittest_status = sprintf("%d warnings", warns);
 		else
 			unittest_status = "passed";
-
-		printf("      [+] %s%s... %s\n", severity_str, unittest,
-		       unittest_status);
+		print unittest_status;
 		fflush("");
 	} else if (tag == "INFO") {
 		info = info tstamp substr($0, index($0, tag) + length(tag)) "\n";
@@ -219,14 +154,11 @@ function get_severity_txt(severity) {
 	if (tag == "END") {
 		# We need to wait until we complete parsing the unit test to
 		# generate the HTML code to have all the test log info and its
-		# status and severity of failure.
-
-		unittest = html_sanitize_text(unittest);
-		info = html_sanitize_text(info);
+		# status.
 
 		href = html_create_testinfo_ctrl_link(unittest,\
-						      unittest "... " unittest_status,\
-						      severity);
+						      unittest "... " unittest_status);
+		gsub(/\n/, "<br>\n", info);
 		content = html_create_div("content_" unittest, "testcase_info", info, 1);
 		div = html_create_div("test_" unittest, "testcase", href content, 1);
 		print div >> HTML;

@@ -17,31 +17,12 @@ awk '/Test:/ {
     }
 
     /PASS/ {
-	printf ("1.0 kernel-efi-warnings %s RESULT 1 0 0 0 0 0\n", test);
+	printf ("1.0 kernel-efi-warnings %s RESULT 1 0 0 0\n", test);
 	fflush("");
     }
 
-    /SKIP/ {
-        printf ("1.0 kernel-efi-warnings %s RESULT 0 0 0 0 1 0\n", test);
-        fflush("");
-    }
-
     /FAIL/ {
-	switch ($2) {
-	case "[LOW]":
-		severity = 1
-		break;
-	case "[MEDIUM]":
-		severity = 2
-		break;
-	case "[HIGH]":
-		severity = 3
-		break;
-	default:
-		severity = -1;
-	}
-	printf ("1.0 kernel-efi-warnings %s RESULT 0 1 %d 0 0 0\n", test, \
-	        severity);
+	printf ("1.0 kernel-efi-warnings %s RESULT 0 1 0 0\n", test);
 	fflush("");
     }
 

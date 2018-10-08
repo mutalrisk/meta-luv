@@ -8,22 +8,19 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=8c16666ae6c159876a0ba63099614381"
 
 SRC_URI = "git://github.com/chipsec/chipsec.git \
     file://0001-drivers-linux-Do-not-host-system-s-kernel-source-dir.patch \
-    file://chipsec \
-    file://luv-parser-chipsec \
-    file://chipsec.json \
+    file://chipsec file://luv-parser-chipsec \
     file://0001-chipsec-building-for-32-bit-systems.patch \
     file://0001-chipsec-do-not-ship-manual.patch \
     file://0001-setup.py-give-CPU-architecture-to-the-driver-s-Makef.patch \
     file://0001-Revert-fix-issue-with-building-driver-on-32bit-syste.patch \
-    file://0001-chipsec-Fix-Unknown-symbol-issue-while-loading-chips.patch \
     "
 
-SRCREV="b0f400a27c296f40b54e6aff1723bd6ab3f654a6"
-PV="1.3.5"
+SRCREV="a82209970012e7835dc16f73af4b377f9f5329d7"
+PV="1.3.1"
 
-DEPENDS = "virtual/kernel python nasm-native python-setuptools-native"
+DEPENDS = "virtual/kernel python-core nasm-native python-setuptools-native"
 RDEPENDS_${PN} = "python python-shell python-stringold python-xml \
-    python-ctypes python-fcntl python-json python-mmap \
+    python-ctypes python-fcntl python-importlib python-json python-mmap \
     python-resource"
 
 COMPATIBLE_HOST='(i.86|x86_64).*'
@@ -32,6 +29,10 @@ inherit module-base
 inherit python-dir
 inherit distutils
 inherit luv-test
+
+addtask make_scripts after do_patch before do_compile
+do_make_scripts[lockfiles] = "${TMPDIR}/kernel-scripts.lock"
+do_make_scripts[depends] += "virtual/kernel:do_shared_workdir"
 
 S = "${WORKDIR}/git"
 
@@ -94,6 +95,5 @@ do_install_append() {
 }
 
 LUV_TEST_LOG_PARSER="luv-parser-chipsec"
-LUV_TEST_JSON="chipsec.json"
 
 FILES_${PN}-dbg +="${libdir}/${PYTHON_DIR}/site-packages/${PN}/helper/linux/.debug"

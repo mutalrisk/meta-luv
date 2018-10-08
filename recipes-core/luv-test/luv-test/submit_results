@@ -6,7 +6,9 @@
 # zip folder and then upload to a given webserver.
 #####################################################################
 
-. luv-message
+plymouth_write() {
+    /bin/plymouth display-message --text="${1}"
+}
 
 # check if the url is valid
 get_luv_url()
@@ -21,8 +23,8 @@ get_luv_url()
             storage_url=$(cat /proc/cmdline | sed -e 's/^.*luv_storage=//' -e 's/ .*$//')
             valid_exp='(https?|ftp|file)://[-A-Za-z0-9\+&@#/%?=~_|!:,.;]*[-A-Za-z0-9\+&@#/%=~_|]'
             if ! [[ ${storage_url} =~ $valid_exp ]] ; then
-                luv_msg_write "$alert_url_missing"
-                return 1
+                echo $alert_url_missing
+                plymouth_write "$alert_url_missing"
             else
                 return 0
             fi

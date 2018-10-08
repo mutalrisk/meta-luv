@@ -1,19 +1,52 @@
-require luv-image.inc
+LICENSE = "MIT"
+LIC_FILES_CHKSUM = "file://${COREBASE}/LICENSE;md5=4d92cd373abda3937c2bc47fbc49d690"
 
-DEPENDS = "python-native parted-native"
-DEPENDS_append_x86 += " grub-efi"
-DEPENDS_append_x86-64 += " grub-efi"
+DEPENDS_${PN} = "grub-efi bits python-native"
 
+HDDDIR = "${S}/hddimg"
 HDDIMG_ID = "423cc2c8"
 LABELS_LIVE = "luv"
 
+INITRD_IMAGE_LIVE = "core-image-efi-initramfs"
+IMGDEPLOYDIR = "${DEPLOY_DIR_IMAGE}"
 MACHINE_FEATURES += "efi"
 
-CMDLINE = "${CMDLINE_BASE}"
+# Tell plymouth to ignore serial consoles and limit the amount of systemD logs.
+CMDLINE_USERSPACE = "systemd.log_target=null plymouth.ignore-serial-consoles"
+
+# Kernel commandline for luv live image boot
+CMDLINE = "${CMDLINE_USERSPACE} debug crashkernel=512M,high log_buf_len=1M efi=debug"
+
+COMMON_CMDLINE_x86 = " console=ttyS0,115200 console=ttyPCH0,115200"
+
+# A splash screen is never seen on ARM. Hence, having the splash parameter only for x86
+# Nomodeset will not allow kernel to load video drivers, helps retaining splash screen.
+# Make sure kdump runs before kexec after a crash and not vice-versa
+COMMON_CMDLINE_x86 += "splash nomodeset crash_kexec_post_notifiers"
+
+# Unlike the += operand, _append's do not insert a space between the current value
+# and the appended string. Thus, we add them.
+CMDLINE_append_aarch64 = " acpi=on"
+CMDLINE_append_x86 = "${COMMON_CMDLINE_x86}"
+CMDLINE_append_x86-64 = "${COMMON_CMDLINE_x86}"
+
+LUVCFG_netconsole = "LUV_NETCONSOLE=none"
+LUVCFG_storage_url = "LUV_STORAGE_URL=none"
+
+python() {
+    import re
+    target = d.getVar('TARGET_ARCH', True)
+    if re.match('aarch64', target):
+        d.setVar('EFI_USEXORRISO', '1')
+}
+
+SPLASH_IMAGE = "blue-luv.jpg"
 
 GRUB_TIMEOUT = "2"
 
 inherit image-live
+
+SRC_URI = "file://blue-luv.jpg"
 
 S = "${WORKDIR}"
 
@@ -123,6 +156,12 @@ build_imgs() {
 python do_create_img() {
     bb.build.exec_func('build_imgs', d)
 }
+
+do_image_ext4() {
+        :
+}
+
+do_image_ext4[noexec] = "1"
 
 do_bootimg[depends] += "${INITRD_IMAGE_LIVE}:do_build"
 do_bootimg[depends] += "virtual/kernel:do_populate_sysroot"

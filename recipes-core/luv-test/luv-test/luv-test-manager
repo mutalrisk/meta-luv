@@ -3,8 +3,6 @@
 # Copyright 2014 Intel Corporation; author Matt Fleming
 #
 
-. luv-message
-
 # ### Messages strings
 # warn the user when no partition is found
 alert_missing_partition="STOP! No partition found to store the results..please report to luv@lists.01.org"
@@ -36,10 +34,18 @@ fi
 grep -q luv\.debug /proc/cmdline
 if [ $? -eq 0 ]; then
     echo "Enable LUV debug mode..."
-    export LUVDEBUG="1"
+    LUVDEBUG="1"
     set -x
     set -v
 fi
+
+plymouth_write() {
+    /bin/plymouth display-message --text="$1"
+}
+
+plymouth_hide() {
+    /bin/plymouth hide-message --text="$1"
+}
 
 html_start()
 {
@@ -56,12 +62,6 @@ html_start()
     echo "</script>" >> $html
     echo "</head>" >> $html
     echo "<body>" >> $html
-
-    # Copy files needed by the HTML report
-    cp /usr/share/luv/html/icon_fail1.png ${LUV_SAVE_PARSED_DIR}
-    cp /usr/share/luv/html/icon_fail2.png ${LUV_SAVE_PARSED_DIR}
-    cp /usr/share/luv/html/icon_fail3.png ${LUV_SAVE_PARSED_DIR}
-    cp /usr/share/luv/html/icon_failunk.png ${LUV_SAVE_PARSED_DIR}
 }
 
 html_inline()
@@ -71,6 +71,7 @@ html_inline()
         print "<div class=\"inline\">" >> HTML
     }
     {
+        print $0
         print $0 "<br>">> HTML
     }
     END {
@@ -81,23 +82,6 @@ html_inline()
 html_finish()
 {
     html=$1
-
-    # Add legends
-    cat <<EOF >> $html
-<div class="legend">
-LEGEND:<br>
-Severity of failures:
-Low:
-<img src="parsed/icon_fail1.png">&emsp;
-Medium:
-<img src="parsed/icon_fail2.png">&emsp;
-High:
-<img src="parsed/icon_fail3.png">&emsp;
-Unknown:
-<img src="parsed/icon_failunk.png">
-</div>
-EOF
-
     echo "</body>" >> $html
     echo "</html>" >> $html
 }
@@ -114,7 +98,7 @@ EOF
 if [ -z ${LUVNETBOOT} ]; then
     ls /dev/disk/by-uuid | grep -q ${LUV_STORAGE_UUID}
     if [ $? -eq 1 ] ; then
-        luv_msg_write "$alert_missing_partition"
+        plymouth_write "$alert_missing_partition"
         halt
     fi
 
@@ -126,7 +110,7 @@ if [ -z ${LUVNETBOOT} ]; then
             # check if there is enough space on disk
             m=$(df | grep ${LUV_STORAGE} | awk '{print $4}')
             if [ $m -le ${LUV_STORAGE_MIN_AVAIL} ] ; then
-                luv_msg_write "$alert_disk_is_full"
+                plymouth_write "$alert_disk_is_full"
                 halt
             fi
         fi
@@ -135,8 +119,6 @@ if [ -z ${LUVNETBOOT} ]; then
     mkdir -p ${LUV_EFI}
     if [ $? -eq 0 ]; then
         mount /dev/disk/by-uuid/${LUV_EFI_UUID} ${LUV_EFI}
-	# if LUV_BITS_CAN_RUN is false(after running BITS), set it back to true
-        sed -i -e "s/LUV_BITS_CAN_RUN='false'/LUV_BITS_CAN_RUN='true'/g" ${LUV_EFI}/luv.cfg
     fi
 # booted from network
 else
@@ -144,98 +126,35 @@ else
     mkdir -p ${LUV_STORAGE}
 fi
 
-create_luv_dirs()
-{
-    tstamp=$(date +"%Y-%m-%d--%H-%M-%S")
-    n=$(ls ${LUV_STORAGE}/ | grep $tstamp | wc -l)
-    if [ $n -ge 1 ]; then
-        export LUV_SAVE_RESULTS_DIR=${LUV_STORAGE}/luv-results-$tstamp-$n
-    else
-        export LUV_SAVE_RESULTS_DIR=${LUV_STORAGE}/luv-results-$tstamp
-    fi
-
-    mkdir -p ${LUV_SAVE_RESULTS_DIR}/raw
-    [ $? -eq 0 ] && LUV_SAVE_RAW_DIR=${LUV_SAVE_RESULTS_DIR}/raw
-
-    mkdir -p ${LUV_SAVE_RESULTS_DIR}/parsed
-    [ $? -eq 0 ] && LUV_SAVE_PARSED_DIR=${LUV_SAVE_RESULTS_DIR}/parsed
-}
-
-display_luv_version()
-{
-    luv_version=$(cut -d\\ -f1 /etc/issue)
-
-    cat <<EOF
-    Welcome to ${luv_version}
-
-    Running tests...
-EOF
-}
-
-start_reports()
-{
-    # Start the HTML report
-    # We need to export LUV_HTML_REPORT to be consumed by the LUV test parser
-    export LUV_HTML_REPORT=${LUV_SAVE_RESULTS_DIR}/luv.html
-    html_start ${LUV_HTML_REPORT}
-
-    # Begin the results files by stating the version of luv
-    cat <<EOF | tee -a ${LUV_SAVE_RESULTS_DIR}/luv.results \
-          /tmp/luv.results html_inline ${LUV_HTML_REPORT}
-    $luv_version
-
-    Date and time of the system : $tstamp
-
-    System: $(cat /proc/cpuinfo | grep 'model name' | cut -d: -f2 | uniq) x $(nproc)
-
-    Machine ID: $(cat /sys/class/dmi/id/product_uuid)
-
-    Test results summary:
-
-EOF
-}
-
-create_luv_dirs
-display_luv_version
-start_reports
-
-# If first boot file exists on the disk and if the test suites are completed
-# successfully, remove the file.
-if [ -e "$first_boot_file" ]; then
-    if grep -q "luv_signature=1" $first_boot_file; then
-        rm $first_boot_file
-    fi
+tstamp=$(date +"%Y-%m-%d--%H-%M-%S")
+n=$(ls ${LUV_STORAGE}/ | grep $tstamp | wc -l)
+if [ $n -ge 1 ]; then
+    LUV_SAVE_RESULTS_DIR=${LUV_STORAGE}/luv-results-$tstamp-$n/
+else
+    LUV_SAVE_RESULTS_DIR=${LUV_STORAGE}/luv-results-$tstamp/
 fi
 
-# Create the "first_boot" file, only if one of the reboot tests is passed as
-# kernel parameters. Create the LUV result folder with the current timestamp
-# as suffix. Store this result folder name into a variable; should there be a
-# reboot because of any test-suite, we want to have just one results folder and
-# append the post reboot results to it.
-if ! grep -q "luv_reboot_tests=none" /proc/cmdline; then
-    first_boot_file="${LUV_STORAGE}/first_boot"
-    if [ ! -e "$first_boot_file" ]; then
-        touch $first_boot_file
-        echo Machine_id=$(cat /sys/class/dmi/id/product_uuid) > $first_boot_file
-        echo LUV_SAVE_RESULTS_DIR=$LUV_SAVE_RESULTS_DIR >> $first_boot_file
-    else
-        product_id=$(cat /sys/class/dmi/id/product_uuid)
-        export Machine_id=`grep Machine_id $first_boot_file | cut -d "=" -f2`
-        if [ "$product_id" == "$Machine_id" ]; then
-            export LUV_SAVE_RESULTS_DIR=`grep LUV_SAVE_RESULTS_DIR $first_boot_file | cut -d "=" -f2`
-            LUV_SAVE_RAW_DIR=${LUV_SAVE_RESULTS_DIR}/raw
-            LUV_SAVE_PARSED_DIR=${LUV_SAVE_RESULTS_DIR}/parsed
-            export LUV_HTML_REPORT=${LUV_SAVE_RESULTS_DIR}/luv.html
-        fi
-    fi
-fi
+mkdir -p ${LUV_SAVE_RESULTS_DIR}raw/
+[ $? -eq 0 ] && LUV_SAVE_RAW_DIR=${LUV_SAVE_RESULTS_DIR}raw/
+
+mkdir -p ${LUV_SAVE_RESULTS_DIR}parsed/
+[ $? -eq 0 ] && LUV_SAVE_PARSED_DIR=${LUV_SAVE_RESULTS_DIR}parsed
 
 if [ ! -z ${LUVDEBUG} ]; then
     # once we know where our storage is, redirect output to a file there
-    exec &> >(tee -a ${LUV_SAVE_RESULTS_DIR}/luv-debug.log)
+    exec &> >(tee ${LUV_SAVE_RESULTS_DIR}luv-debug.log)
 fi
 
-luv_msg_write "Running tests..."
+
+plymouth_write "Running tests..."
+
+luv_version=$(cut -d\\ -f1 /etc/issue)
+
+cat <<EOF | tee /dev/kmsg
+Welcome to ${luv_version}
+
+Running tests...
+EOF
 
 #
 # Every test must create a runner script and place it in $LUV_TESTS_DIR.
@@ -247,46 +166,45 @@ luv_msg_write "Running tests..."
 #
 LUV_TESTS_DIR=/etc/luv/tests/
 LUV_PARSER_DIR=/etc/luv/parsers/
+LUV_LOG_DIR=/var/log/luv/
+
+mkdir -p ${LUV_LOG_DIR}
+
+# Start the HTML report
+# We need to export LUV_HTML_REPORT to be consumed by the LUV test parser
+export LUV_HTML_REPORT=${LUV_SAVE_RESULTS_DIR}/luv.html
+html_start ${LUV_HTML_REPORT}
+
+# Begin the results files by stating the version of luv
+cat <<EOF | html_inline ${LUV_HTML_REPORT} | tee /dev/kmsg \
+    ${LUV_SAVE_RESULTS_DIR}/luv.results /tmp/luv.results
+$luv_version
+
+Date and time of the system : $tstamp
+
+System: $(cat /proc/cpuinfo | grep 'model name' | cut -d: -f2 | uniq) x $(nproc)
+
+Test results summary:
+
+EOF
+
+# all the messages from dmesg buffer comes with timestamp and since the
+# user space messages are being directed to dmesg via /dev/kmsg, most of
+# the messages miss the timestamp. In order to provide timestamp for each,
+# parse each user space message line by line via /dev/kmsg
 
 parse_line()
 {
     while read line ; do
     case $line in
         *+* )
-        echo "[    `cut -d " " -f 1 /proc/uptime`0000]  $line"
+        echo ' ' $line
         ;;
         * )
-        echo "[    `cut -d " " -f 1 /proc/uptime`0000] $line"
+        echo $line
         ;;
     esac
-    done
-}
-
-# Checks if the size of the results file is always greater than it's size 3 secs
-# ago until the testsuite is finished executing. Otherwise, its a sign that the
-# testsuite is stalled and the process needs to be killed. Both the
-# results file and the process id are passed as parameters.
-detect_hang()
-{
-    file_size=1
-    file_size_inc=0
-    current_test="$1"
-    process_id="$2"
-
-    while [[ $file_size_inc -ge $file_size ]]
-    do
-        file_size=$(ls -la $current_test | awk '{ print $5}')
-        sleep 3
-        file_size_inc=$(ls -la $current_test | awk '{ print $5}')
-        if [ "$file_size_inc" == "$file_size" ]; then
-            break
-        fi
-    done
-
-    ps | grep -q "$process_id"
-    if [ $? -eq 0 ]; then
-        trap "kill $process_id" exit INT TERM
-    fi
+    done | tee /dev/kmsg
 }
 
 runner_list=`ls -A ${LUV_TESTS_DIR}`
@@ -299,47 +217,18 @@ tests=0
 progress_step="$((100/$(echo $runner_list | wc -w)))"
 for r in $runner_list; do
     runner="${LUV_TESTS_DIR}$r"
-
-    # Don't run the testsuite(s) if it is disabled by the user.
-    for line in $(cat /proc/cmdline); do
-        if [[ "$line" =~ "$r" ]]; then
-            luv_tests_string=$line
-        fi
-    done
-    if ! echo $luv_tests_string | grep -q $r; then
-        continue
-    fi
-
-    # if a test suite has already completed, do not run it again.
-    if [ -e "$first_boot_file" ]; then
-        if grep -q $r $first_boot_file; then
-            continue
-        fi
-        # Leave a signature when reboot_tests are enabled/configured.
-        for line in $(cat /proc/cmdline); do
-            if [[ "$line" =~ "luv_reboot_tests" ]]; then
-                reboot_string=$line
-            fi
-        done
-        if echo $reboot_string | grep -q $r; then
-            luv_signature="1"
-        fi
-    fi
-
     #We display each test suite running for equal amount of time
-    luv_msg_hide "Running tests..."
+    plymouth_hide "Running tests..."
 
-    # run the runner in a forked subshell
-    [ -f "$runner" ] || continue &
-    process_runner_id="$!"
+    [ -f "$runner" ] || continue
 
     arr[tests]=$r
     if [ $tests -ge 1 ]; then
-        luv_msg_hide "Running ${arr[$((tests-1))]} ..."
+        plymouth_hide "Running ${arr[$((tests-1))]} ..."
     fi
 
     tests=$((tests+1))
-    luv_msg_write "Running $r ..."
+    plymouth_write "Running $r ..."
 
     parser="${LUV_PARSER_DIR}/$r"
     [ -e ${parser} ] || {
@@ -347,65 +236,44 @@ for r in $runner_list; do
     }
 
     # Make /dev/console silent to avoid the results being printed twice
-    $runner |& tee -a ${LUV_SAVE_RAW_DIR}/$r | $parser | \
-              tee -a ${LUV_SAVE_PARSED_DIR}/$r | ${LUV_PARSER_DIR}/test-manager | \
+    $runner |& tee ${LUV_LOG_DIR}/$r ${LUV_SAVE_RAW_DIR}/$r | $parser | \
+              tee ${LUV_SAVE_PARSED_DIR}/$r | ${LUV_PARSER_DIR}/test-manager | \
               parse_line | \
               tee -a /tmp/luv.results ${LUV_SAVE_RESULTS_DIR}/luv.results
-
-    detect_hang ${LUV_SAVE_RAW_DIR}/$r $process_runner_id
-    # Wait till the subprocess or the forked shell returns and then sync
-    wait
     sync
-
-    luv_msg_hide "Running ${arr[-1]} ..."
-
-    # Update the first_boot file with test_suites that have completed.
-    if [ -e "$first_boot_file" ]; then
-        if [[ "$luv_signature" == "1" ]]; then
-            echo luv_signature=$luv_signature >> $first_boot_file
-        fi
-        echo $r >> $first_boot_file
-    fi
-    sync
-
-done
-
-cat ${LUV_SAVE_RESULTS_DIR}/luv.results | awk '/\[\+/  { units += 1 }
-    /\[\-/ { suites += 1 }
+    plymouth_hide "Running ${arr[-1]} ..."
+done | awk '/\[\+/  { units += 1 }
+    /\[\-/  { suites += 1 }
     /pass/ { passes += 1 }
-    /fail/ { fails += $5 }
+    /fail/ { fails += $3 }
     /skip/ { skips += 1 }
-    /warn/ { warns += $5 }
+    /warn/ { warns += $3 }
     END {
 	printf("\nRan %d testsuites and %d unittests, %d passes, %d fails, %d skipped, %d warnings.\n",
 		suites, units, passes, fails, skips, warns) > "/tmp/testsuites"
     }'
 
-result=$(cat /tmp/testsuites)
-echo -e '\n'$result | tee -a /tmp/luv.results ${LUV_SAVE_RESULTS_DIR}/luv.results | \
-        html_inline ${LUV_HTML_REPORT}
+cat /tmp/testsuites | html_inline ${LUV_HTML_REPORT} | tee -a /dev/kmsg /tmp/luv.results \
+         ${LUV_SAVE_RESULTS_DIR}/luv.results
 
-luv_msg_write "$result"
+result=$(cat /tmp/testsuites)
+plymouth_write "$result"
 sleep 2
 
 html_finish ${LUV_HTML_REPORT}
-
-if [ -e "$first_boot_file" ]; then
-    rm $first_boot_file
-fi
 
 mountpoint -q ${LUV_EFI}
 if [ $? -eq 0 ]; then
     umount ${LUV_EFI}
 fi
 
-# dump dmesg, cpuinfo and acpi tables to luv results folder
-luv-dmesg-acpi-tables-dump ${LUV_SAVE_RESULTS_DIR}
-
 # close debug log file before unmounting LUV_STORAGE.
 if [ ! -z ${LUVDEBUG} ]; then
     exec &> /dev/console
 fi
+
+# dump dmesg, cpuinfo and acpi tables to LUV Results partition
+luv-dmesg-acpi-tables-dump luv-results-$tstamp
 
 # invoke the script that saves/submits the results to a webserver.
 submit_results ${LUV_SAVE_RESULTS_DIR}
@@ -413,14 +281,33 @@ submit_results ${LUV_SAVE_RESULTS_DIR}
 mountpoint -q ${LUV_STORAGE}
 if [ $? -eq 0 ]; then
     umount ${LUV_STORAGE}
-    luv_msg_write "Results were saved in your boot media. You may now turn off the system and remove it."
+    plymouth_write "Results were saved in your boot media. You may now turn off the system and remove it."
 else
-    luv_msg_write "Results were not saved in storage media."
+    plymouth_write "Results were not saved in storage media."
 fi
 
 grep -q luv.halt /proc/cmdline
 if [ $? -ne 1 ]; then
     halt
+fi
+
+REBOOT_TIMEOUT=$((5*60))
+
+timeout_file="/sys/firmware/efi/efivars/LuvTimeout-3b6bf55d-a6f6-45cf-9f7e-ebf3bdadf74e"
+[ -e ${timeout_file} ] && {
+    REBOOT_TIMEOUT=`hexdump -e '"%08u\n"' ${timeout_file} | tail -n1`
+}
+
+grep -q luv.reboot /proc/cmdline
+if [ $? -ne 1 ]; then
+    # Put reboot task into background and drop to a shell
+    $(sleep ${REBOOT_TIMEOUT} ; reboot)&
+fi
+
+grep -q luv.poweroff /proc/cmdline
+if [ $? -ne 1 ]; then
+    # Put poweroff task into background and drop to a shell
+    $(sleep ${REBOOT_TIMEOUT} ; poweroff)&
 fi
 
 set +x
