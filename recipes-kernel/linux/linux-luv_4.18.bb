@@ -55,7 +55,9 @@ KBRANCH="master"
 inherit kernel
 require recipes-kernel/linux/linux-yocto.inc
 
-KERNEL_FEATURES_remove= " features/debug/printk.scc"
+KERNEL_FEATURES_remove= " features/debug/printk.scc \
+                           features/kernel-sample/kernel-sample.scc \
+                         "
 
 # Override SRC_URI in a bbappend file to point at a different source
 # tree if you do not want to build from Linus' tree.
@@ -104,6 +106,7 @@ SRC_URI_append_x86-64 = "${COMMON_CFG_x86} \
                         "
 SRC_URI_append_aarch64 = " file://qemuarm64/network.cfg \
                            file://qemuarm64/sbbr.cfg \
+			   file://qemuarm64/64Kpages.cfg \
                          "
 
 # pstore, highmem and efi configs are common to all the supported architectures
@@ -127,13 +130,13 @@ KCONFIG_MODE = 'alldefconfig'
 KBUILD_DEFCONFIG = "defconfig"
 KBUILD_DEFCONFIG_x86 = "i386_defconfig"
 KBUILD_DEFCONFIG_x86-64 = "x86_64_defconfig"
-LINUX_VERSION = "4.17"
+LINUX_VERSION = "4.18"
 LINUX_VERSION_EXTENSION = "-luv"
 
 # Override SRCREV to point to a different commit in a bbappend file to
 # build a different release of the Linux kernel.
-# tag: v4.17 29dcea88779c856c7dc92040a0c01233263101d4
-SRCREV = "29dcea88779c856c7dc92040a0c01233263101d4"
+# tag: v4.18 94710cac0ef4ee177a63b5227664b38c95bbf703
+SRCREV = "94710cac0ef4ee177a63b5227664b38c95bbf703"
 
 PR = "r5"
 PV = "${LINUX_VERSION}+git${SRCPV}"
@@ -147,10 +150,6 @@ COMPATIBLE_MACHINE = "qemux86|qemux86-64|qemuarm64"
 # fatal error: openssl/bio.h: No such file or directory
 DEPENDS += "openssl-native"
 HOST_EXTRACFLAGS += "-I${STAGING_INCDIR_NATIVE}"
-
-do_configure_prepend() {
-	rm ${B}/.cache.mk
-}
 
 do_install_append() {
     if [ "${TARGET_ARCH}" = "x86_64" ]; then
